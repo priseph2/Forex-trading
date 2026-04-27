@@ -1,0 +1,6 @@
+polygon-api-client>=1.13
+python-dotenv>=1.0
+pandas>=2.0
+numpy>=1.24
+rich>=13.0
+pytest>=7.0

@@ -16,7 +16,7 @@ import time
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.data.fetcher import ALL_PAIRS, DataFetchError, fetch_ohlcv, get_pairs_for_market
+from src.data.fetcher import ALL_PAIRS, DataFetchError, Timeframe, fetch_ohlcv, get_pairs_for_market
 from src.signals.aggregator import aggregate_signals
 from src.signals.output import export_json, print_signals
 from src.strategies.bollinger_strategy import BollingerStrategy
@@ -34,7 +34,7 @@ STRATEGIES = [
 _RATE_LIMIT_DELAY = 13.0  # seconds between requests on Polygon free tier (5 req/min)
 
 
-def run(pairs: list[str], period_days: int, export: bool, market: str, console: Console) -> None:
+def run(pairs: list[str], period_days: int, export: bool, market: str, timeframe: Timeframe, console: Console) -> None:
     results = []
 
     with Progress(
@@ -48,7 +48,7 @@ def run(pairs: list[str], period_days: int, export: bool, market: str, console: 
         for i, pair in enumerate(pairs):
             progress.update(task, description=f"Fetching {pair}…")
             try:
-                ohlcv = fetch_ohlcv(pair, period_days)
+                ohlcv = fetch_ohlcv(pair, period_days, timeframe)
                 signals = [s.generate(pair, ohlcv) for s in STRATEGIES]
                 result = aggregate_signals(pair, signals, STRATEGIES)
                 results.append(result)
@@ -85,10 +85,16 @@ def main() -> None:
     )
     parser.add_argument("--pair", type=str, help="Analyze a single pair, e.g. EUR/USD or BTC/USD")
     parser.add_argument(
+        "--timeframe",
+        choices=["1d", "4h", "1h"],
+        default="1d",
+        help="Bar size: 1d=daily (default), 4h=4-hour, 1h=1-hour",
+    )
+    parser.add_argument(
         "--period",
         type=int,
-        default=100,
-        help="Days of history to fetch (default: 100)",
+        default=None,
+        help="Calendar days of history (default: 100 for 1d, 30 for 4h, 14 for 1h)",
     )
     args = parser.parse_args()
 
@@ -101,6 +107,9 @@ def main() -> None:
         )
         raise SystemExit(1)
 
+    from src.data.fetcher import default_period_for
+    period = args.period if args.period is not None else default_period_for(args.timeframe)
+
     if args.pair:
         pairs = [args.pair]
         market_label = "forex" if args.pair in list(ALL_PAIRS.keys())[:7] else "crypto"
@@ -108,7 +117,7 @@ def main() -> None:
         pairs = list(get_pairs_for_market(args.market).keys())
         market_label = args.market
 
-    run(pairs, args.period, args.export, market_label, console)
+    run(pairs, period, args.export, market_label, args.timeframe, console)
 
 
 if __name__ == "__main__":

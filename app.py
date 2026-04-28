@@ -21,6 +21,9 @@ from src.data.fetcher import (
     CRYPTO_PAIRS,
     FOREX_PAIRS,
     DataFetchError,
+    TIMEFRAME_LABELS,
+    Timeframe,
+    default_period_for,
     fetch_ohlcv,
     get_pairs_for_market,
 )
@@ -43,7 +46,7 @@ _RATE_LIMIT_DELAY = 13.0  # seconds between requests on Polygon free tier
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _fetch_signals(pairs: list[str], period: int) -> tuple[list[PairResult], list[str]]:
+def _fetch_signals(pairs: list[str], period: int, timeframe: Timeframe) -> tuple[list[PairResult], list[str]]:
     """Fetch OHLCV and compute signals for each pair, with rate-limit delay."""
     results: list[PairResult] = []
     warnings: list[str] = []
@@ -53,7 +56,7 @@ def _fetch_signals(pairs: list[str], period: int) -> tuple[list[PairResult], lis
     for i, pair in enumerate(pairs):
         progress.progress((i) / len(pairs), text=f"Fetching {pair} ({i + 1}/{len(pairs)})…")
         try:
-            ohlcv = fetch_ohlcv(pair, period)
+            ohlcv = fetch_ohlcv(pair, period, timeframe)
             signals = [s.generate(pair, ohlcv) for s in STRATEGIES]
             result = aggregate_signals(pair, signals, STRATEGIES)
             results.append(result)
@@ -160,6 +163,12 @@ with st.sidebar:
         format_func=lambda m: {"forex": "Forex Majors", "crypto": "Crypto Altcoins", "all": "Forex + Crypto"}[m],
     )
 
+    timeframe: Timeframe = st.selectbox(
+        "Timeframe",
+        options=list(TIMEFRAME_LABELS.keys()),
+        format_func=lambda t: TIMEFRAME_LABELS[t],
+    )
+
     all_pairs = list(get_pairs_for_market(market).keys())
     selected_pairs = st.multiselect(
         "Pairs (leave empty for all)",
@@ -169,7 +178,10 @@ with st.sidebar:
     )
     pairs_to_fetch = selected_pairs if selected_pairs else all_pairs
 
-    period = st.slider("History (days)", min_value=60, max_value=200, value=100, step=10)
+    # Period slider range and default adapt to the chosen timeframe
+    _period_cfg = {"1d": (30, 200, 100), "4h": (7, 60, 30), "1h": (3, 30, 14)}
+    _pmin, _pmax, _pdef = _period_cfg[timeframe]
+    period = st.slider("History (days)", min_value=_pmin, max_value=_pmax, value=_pdef, step=1)
 
     st.divider()
     st.caption(f"⏱ Est. fetch time: **{_estimate_time(len(pairs_to_fetch))}** on free tier")
@@ -183,11 +195,12 @@ if generate:
     st.session_state.pop("results", None)  # clear previous cache on manual refresh
 
     with st.spinner(""):
-        results, warnings = _fetch_signals(pairs_to_fetch, period)
+        results, warnings = _fetch_signals(pairs_to_fetch, period, timeframe)
 
     st.session_state["results"] = results
     st.session_state["warnings"] = warnings
     st.session_state["fetched_at"] = datetime.now(timezone.utc)
+    st.session_state["timeframe"] = timeframe
 
 # Show results if available in session state
 if "results" in st.session_state:
@@ -216,10 +229,11 @@ if "results" in st.session_state:
 
         # Color-coded signals table
         market_label = {"forex": "Forex", "crypto": "Crypto", "all": "Forex & Crypto"}.get(
-            st.session_state.get("market", market), "Signals"
+            market, "Signals"
         )
+        tf_label = TIMEFRAME_LABELS.get(st.session_state.get("timeframe", "1d"), "")
         ts = fetched_at.strftime("%Y-%m-%d %H:%M UTC") if fetched_at else ""
-        st.subheader(f"{market_label} Signals — {ts}")
+        st.subheader(f"{market_label} · {tf_label} Signals — {ts}")
 
         df = _results_to_df(results)
         st.markdown(_build_html_table(df), unsafe_allow_html=True)

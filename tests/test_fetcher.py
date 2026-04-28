@@ -7,6 +7,7 @@ from src.data.fetcher import (
     CRYPTO_PAIRS,
     FOREX_PAIRS,
     DataFetchError,
+    default_period_for,
     fetch_ohlcv,
     get_pairs_for_market,
 )
@@ -105,3 +106,38 @@ def test_get_pairs_for_market_all():
 def test_crypto_pairs_have_correct_ticker_format():
     for friendly, ticker in CRYPTO_PAIRS.items():
         assert ticker.startswith("X:"), f"{friendly} ticker '{ticker}' should start with 'X:'"
+
+
+# --- Timeframe tests ---
+
+def test_default_period_daily():
+    assert default_period_for("1d") == 100
+
+def test_default_period_4h():
+    assert default_period_for("4h") == 30
+
+def test_default_period_1h():
+    assert default_period_for("1h") == 14
+
+
+@patch("src.data.fetcher.RESTClient")
+def test_fetch_4h_returns_dataframe(mock_cls):
+    mock_cls.return_value.get_aggs.return_value = _make_aggs(500)
+    with patch.dict("os.environ", {"POLYGON_API_KEY": "test_key"}):
+        df = fetch_ohlcv("EUR/USD", period_days=30, timeframe="4h")
+    assert isinstance(df, pd.DataFrame)
+    assert set(df.columns) == {"Open", "High", "Low", "Close", "Volume"}
+
+
+@patch("src.data.fetcher.RESTClient")
+def test_fetch_1h_returns_dataframe(mock_cls):
+    mock_cls.return_value.get_aggs.return_value = _make_aggs(500)
+    with patch.dict("os.environ", {"POLYGON_API_KEY": "test_key"}):
+        df = fetch_ohlcv("BTC/USD", period_days=14, timeframe="1h")
+    assert isinstance(df, pd.DataFrame)
+
+
+def test_invalid_timeframe_raises():
+    with pytest.raises(DataFetchError, match="Unknown timeframe"):
+        with patch.dict("os.environ", {"POLYGON_API_KEY": "test_key"}):
+            fetch_ohlcv("EUR/USD", timeframe="5m")

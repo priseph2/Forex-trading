@@ -3,11 +3,19 @@ Forex & Crypto Signal Generator — Streamlit dashboard
 Run: streamlit run app.py
 """
 import json
+import os
 import time
 from datetime import datetime, timezone
 
 import pandas as pd
 import streamlit as st
+
+# On Streamlit Cloud secrets are not env vars — inject them before the fetcher loads.
+if "POLYGON_API_KEY" not in os.environ:
+    try:
+        os.environ["POLYGON_API_KEY"] = st.secrets["POLYGON_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        pass
 
 from src.data.fetcher import (
     CRYPTO_PAIRS,

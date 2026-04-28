@@ -31,9 +31,12 @@ def _confidence_cell(confidence: float) -> Text:
     return Text(pct, style=style)
 
 
-def build_table(results: list[PairResult]) -> Table:
+def build_table(results: list[PairResult], market: str = "forex") -> Table:
+    market_label = {"forex": "Forex", "crypto": "Crypto", "all": "Forex & Crypto"}.get(
+        market, market.title()
+    )
     table = Table(
-        title=f"Forex Signals — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+        title=f"{market_label} Signals — {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
         show_header=True,
         header_style="bold cyan",
     )
@@ -60,10 +63,12 @@ def build_table(results: list[PairResult]) -> Table:
     return table
 
 
-def print_signals(results: list[PairResult], console: Console | None = None) -> None:
+def print_signals(
+    results: list[PairResult], console: Console | None = None, market: str = "forex"
+) -> None:
     if console is None:
         console = Console()
-    console.print(build_table(results))
+    console.print(build_table(results, market=market))
 
 
 def export_json(results: list[PairResult], path: str | Path = "signals_output.json") -> None:

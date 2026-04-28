@@ -2,6 +2,7 @@ import os
 import time
 import warnings
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -19,6 +20,34 @@ FOREX_PAIRS: dict[str, str] = {
     "NZD/USD": "C:NZDUSD",
 }
 
+# Top altcoins by market cap (BTC + ETH as benchmarks + liquid altcoins)
+CRYPTO_PAIRS: dict[str, str] = {
+    "BTC/USD": "X:BTCUSD",
+    "ETH/USD": "X:ETHUSD",
+    "SOL/USD": "X:SOLUSD",
+    "XRP/USD": "X:XRPUSD",
+    "ADA/USD": "X:ADAUSD",
+    "AVAX/USD": "X:AVAXUSD",
+    "DOGE/USD": "X:DOGEUSD",
+    "DOT/USD": "X:DOTUSD",
+    "LINK/USD": "X:LINKUSD",
+    "LTC/USD": "X:LTCUSD",
+    "MATIC/USD": "X:MATICUSD",
+    "ATOM/USD": "X:ATOMUSD",
+}
+
+ALL_PAIRS: dict[str, str] = {**FOREX_PAIRS, **CRYPTO_PAIRS}
+
+Market = Literal["forex", "crypto", "all"]
+
+
+def get_pairs_for_market(market: Market) -> dict[str, str]:
+    if market == "forex":
+        return FOREX_PAIRS
+    if market == "crypto":
+        return CRYPTO_PAIRS
+    return ALL_PAIRS
+
 
 class DataFetchError(RuntimeError):
     pass
@@ -35,17 +64,17 @@ def _get_client() -> RESTClient:
 
 def fetch_ohlcv(pair: str, period_days: int = 100) -> pd.DataFrame:
     """
-    Fetch daily OHLCV bars for a forex pair from Polygon.io.
+    Fetch daily OHLCV bars for a forex or crypto pair from Polygon.io.
 
     Returns a DataFrame with DatetimeIndex and columns [Open, High, Low, Close, Volume].
     Raises DataFetchError if the pair is unknown, data is empty, or fewer than 60 bars returned.
     """
-    if pair not in FOREX_PAIRS:
+    if pair not in ALL_PAIRS:
         raise DataFetchError(
-            f"Unknown pair '{pair}'. Supported: {list(FOREX_PAIRS.keys())}"
+            f"Unknown pair '{pair}'. Supported: {list(ALL_PAIRS.keys())}"
         )
 
-    ticker = FOREX_PAIRS[pair]
+    ticker = ALL_PAIRS[pair]
     to_date = datetime.now(timezone.utc).date()
     # Extra buffer for weekends and holidays so we always get enough trading days
     from_date = to_date - timedelta(days=period_days + 40)
@@ -94,11 +123,13 @@ def fetch_ohlcv(pair: str, period_days: int = 100) -> pd.DataFrame:
 
 
 def fetch_all_pairs(
-    period_days: int = 100, rate_limit_delay: float = 13.0
+    market: Market = "forex",
+    period_days: int = 100,
+    rate_limit_delay: float = 13.0,
 ) -> dict[str, pd.DataFrame]:
-    """Fetch all pairs with a delay between requests to respect the free-tier rate limit."""
+    """Fetch pairs for the given market with a delay to respect the free-tier rate limit."""
     results: dict[str, pd.DataFrame] = {}
-    pairs = list(FOREX_PAIRS.keys())
+    pairs = list(get_pairs_for_market(market).keys())
     for i, pair in enumerate(pairs):
         try:
             results[pair] = fetch_ohlcv(pair, period_days)

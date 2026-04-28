@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Forex Signal Generator — powered by Polygon.io
+Forex & Crypto Signal Generator — powered by Polygon.io
 
 Usage:
-  python main.py                   # All 7 major pairs (~90s on free tier)
-  python main.py --pair EUR/USD    # Single pair (no rate-limit delay)
-  python main.py --export          # Also write signals_output.json
-  python main.py --period 150      # Use more historical data
+  python main.py                         # Forex majors (~90s on free tier)
+  python main.py --market crypto         # Top altcoins (~3min on free tier)
+  python main.py --market all            # Forex + crypto (~4.5min on free tier)
+  python main.py --pair BTC/USD          # Single pair (no rate-limit delay)
+  python main.py --export                # Also write signals_output.json
+  python main.py --period 150            # Use more historical data
 """
 import argparse
 import time
@@ -14,7 +16,7 @@ import time
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.data.fetcher import FOREX_PAIRS, DataFetchError, fetch_ohlcv
+from src.data.fetcher import ALL_PAIRS, DataFetchError, fetch_ohlcv, get_pairs_for_market
 from src.signals.aggregator import aggregate_signals
 from src.signals.output import export_json, print_signals
 from src.strategies.bollinger_strategy import BollingerStrategy
@@ -32,7 +34,7 @@ STRATEGIES = [
 _RATE_LIMIT_DELAY = 13.0  # seconds between requests on Polygon free tier (5 req/min)
 
 
-def run(pairs: list[str], period_days: int, export: bool, console: Console) -> None:
+def run(pairs: list[str], period_days: int, export: bool, market: str, console: Console) -> None:
     results = []
 
     with Progress(
@@ -59,7 +61,7 @@ def run(pairs: list[str], period_days: int, export: bool, console: Console) -> N
                 time.sleep(_RATE_LIMIT_DELAY)
 
     if results:
-        print_signals(results, console)
+        print_signals(results, console, market=market)
     else:
         console.print(
             "[red]No signals generated — check your POLYGON_API_KEY and network connection.[/red]"
@@ -72,10 +74,16 @@ def run(pairs: list[str], period_days: int, export: bool, console: Console) -> N
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Forex trading signal generator using Polygon.io data"
+        description="Forex & crypto trading signal generator using Polygon.io data"
     )
     parser.add_argument("--export", action="store_true", help="Export signals to JSON")
-    parser.add_argument("--pair", type=str, help="Analyze a single pair, e.g. EUR/USD")
+    parser.add_argument(
+        "--market",
+        choices=["forex", "crypto", "all"],
+        default="forex",
+        help="Market to analyze: forex (default), crypto, or all",
+    )
+    parser.add_argument("--pair", type=str, help="Analyze a single pair, e.g. EUR/USD or BTC/USD")
     parser.add_argument(
         "--period",
         type=int,
@@ -86,15 +94,21 @@ def main() -> None:
 
     console = Console()
 
-    if args.pair and args.pair not in FOREX_PAIRS:
+    if args.pair and args.pair not in ALL_PAIRS:
         console.print(
             f"[red]Unknown pair '{args.pair}'. "
-            f"Valid pairs: {', '.join(FOREX_PAIRS.keys())}[/red]"
+            f"Valid pairs: {', '.join(ALL_PAIRS.keys())}[/red]"
         )
         raise SystemExit(1)
 
-    pairs = [args.pair] if args.pair else list(FOREX_PAIRS.keys())
-    run(pairs, args.period, args.export, console)
+    if args.pair:
+        pairs = [args.pair]
+        market_label = "forex" if args.pair in list(ALL_PAIRS.keys())[:7] else "crypto"
+    else:
+        pairs = list(get_pairs_for_market(args.market).keys())
+        market_label = args.market
+
+    run(pairs, args.period, args.export, market_label, console)
 
 
 if __name__ == "__main__":

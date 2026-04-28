@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from src.data.fetcher import DataFetchError, fetch_ohlcv
+from src.data.fetcher import (
+    CRYPTO_PAIRS,
+    FOREX_PAIRS,
+    DataFetchError,
+    fetch_ohlcv,
+    get_pairs_for_market,
+)
 
 
 def _make_mock_agg(close: float, ts: int) -> MagicMock:
@@ -58,3 +64,44 @@ def test_missing_api_key_raises(monkeypatch):
     monkeypatch.delenv("POLYGON_API_KEY", raising=False)
     with pytest.raises(EnvironmentError, match="POLYGON_API_KEY"):
         fetch_ohlcv("EUR/USD")
+
+
+# --- Crypto pair tests ---
+
+def test_crypto_unknown_pair_raises():
+    with pytest.raises(DataFetchError, match="Unknown pair"):
+        fetch_ohlcv("FOO/BAR")
+
+
+@patch("src.data.fetcher.RESTClient")
+def test_crypto_fetch_returns_dataframe(mock_cls):
+    mock_cls.return_value.get_aggs.return_value = _make_aggs(100)
+    with patch.dict("os.environ", {"POLYGON_API_KEY": "test_key"}):
+        df = fetch_ohlcv("BTC/USD", period_days=80)
+    assert isinstance(df, pd.DataFrame)
+    assert set(df.columns) == {"Open", "High", "Low", "Close", "Volume"}
+    assert len(df) >= 60
+
+
+def test_get_pairs_for_market_forex():
+    pairs = get_pairs_for_market("forex")
+    assert pairs == FOREX_PAIRS
+    assert all(v.startswith("C:") for v in pairs.values())
+
+
+def test_get_pairs_for_market_crypto():
+    pairs = get_pairs_for_market("crypto")
+    assert pairs == CRYPTO_PAIRS
+    assert all(v.startswith("X:") for v in pairs.values())
+
+
+def test_get_pairs_for_market_all():
+    pairs = get_pairs_for_market("all")
+    assert len(pairs) == len(FOREX_PAIRS) + len(CRYPTO_PAIRS)
+    assert "EUR/USD" in pairs
+    assert "BTC/USD" in pairs
+
+
+def test_crypto_pairs_have_correct_ticker_format():
+    for friendly, ticker in CRYPTO_PAIRS.items():
+        assert ticker.startswith("X:"), f"{friendly} ticker '{ticker}' should start with 'X:'"

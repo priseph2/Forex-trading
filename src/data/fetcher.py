@@ -48,7 +48,7 @@ _TIMEFRAME_CONFIG: dict[str, tuple[int, str, int]] = {
     "1h": (1, "hour",  14),  # ~336 1h bars over 14 calendar days
 }
 
-TIMEFRAME_LABELS: dict[Timeframe, str] = {
+TIMEFRAME_LABELS: dict[str, str] = {
     "1d": "Daily (1D)",
     "4h": "4-Hour",
     "1h": "1-Hour",
@@ -92,7 +92,7 @@ def fetch_ohlcv(
     ----------
     pair        : friendly name, e.g. "EUR/USD" or "BTC/USD"
     period_days : calendar days of history to request
-    timeframe   : bar size — "1d" (daily), "4h" (4-hour), or "1h" (1-hour)
+    timeframe   : bar size -- "1d" (daily), "4h" (4-hour), or "1h" (1-hour)
 
     Returns a DataFrame with DatetimeIndex and columns [Open, High, Low, Close, Volume].
     Raises DataFetchError if the pair is unknown, data is empty, or fewer than 60 bars returned.

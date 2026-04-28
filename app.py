@@ -1,5 +1,5 @@
 """
-Forex & Crypto Signal Generator — Streamlit dashboard
+Forex & Crypto Signal Generator -- Streamlit dashboard
 Run: streamlit run app.py
 """
 import json
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import streamlit as st
 
-# On Streamlit Cloud secrets are not env vars — inject them before the fetcher loads.
+# On Streamlit Cloud secrets are not env vars -- inject them before the fetcher loads.
 if "POLYGON_API_KEY" not in os.environ:
     try:
         os.environ["POLYGON_API_KEY"] = st.secrets["POLYGON_API_KEY"]
@@ -44,17 +44,17 @@ STRATEGIES = [
 _RATE_LIMIT_DELAY = 13.0  # seconds between requests on Polygon free tier
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# -- Helpers ------------------------------------------------------------------
 
 def _fetch_signals(pairs: list[str], period: int, timeframe: Timeframe) -> tuple[list[PairResult], list[str]]:
     """Fetch OHLCV and compute signals for each pair, with rate-limit delay."""
     results: list[PairResult] = []
     warnings: list[str] = []
 
-    progress = st.progress(0.0, text="Starting fetch…")
+    progress = st.progress(0.0, text="Starting fetch...")
 
     for i, pair in enumerate(pairs):
-        progress.progress((i) / len(pairs), text=f"Fetching {pair} ({i + 1}/{len(pairs)})…")
+        progress.progress((i) / len(pairs), text=f"Fetching {pair} ({i + 1}/{len(pairs)})...")
         try:
             ohlcv = fetch_ohlcv(pair, period, timeframe)
             signals = [s.generate(pair, ohlcv) for s in STRATEGIES]
@@ -141,7 +141,7 @@ def _estimate_time(n: int) -> str:
     return f"{mins}m {secs}s" if mins else f"{secs}s"
 
 
-# ── Page config ───────────────────────────────────────────────────────────────
+# -- Page config --------------------------------------------------------------
 
 st.set_page_config(
     page_title="Trading Signal Generator",
@@ -152,7 +152,7 @@ st.set_page_config(
 st.title("📈 Trading Signal Generator")
 st.caption("Powered by Polygon.io · EMA Crossover · RSI · MACD · Bollinger Bands")
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# -- Sidebar ------------------------------------------------------------------
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -189,10 +189,10 @@ with st.sidebar:
 
     generate = st.button("🚀 Generate Signals", type="primary", use_container_width=True)
 
-# ── Main area ─────────────────────────────────────────────────────────────────
+# -- Main area ----------------------------------------------------------------
 
 if generate:
-    st.session_state.pop("results", None)  # clear previous cache on manual refresh
+    st.session_state.pop("results", None)
 
     with st.spinner(""):
         results, warnings = _fetch_signals(pairs_to_fetch, period, timeframe)
@@ -214,7 +214,6 @@ if "results" in st.session_state:
     if not results:
         st.error("No signals generated. Check your POLYGON_API_KEY in the .env file.")
     else:
-        # Summary metric cards
         buy_count = sum(1 for r in results if r.combined == Direction.BUY)
         sell_count = sum(1 for r in results if r.combined == Direction.SELL)
         hold_count = sum(1 for r in results if r.combined == Direction.HOLD)
@@ -227,7 +226,6 @@ if "results" in st.session_state:
 
         st.divider()
 
-        # Color-coded signals table
         market_label = {"forex": "Forex", "crypto": "Crypto", "all": "Forex & Crypto"}.get(
             market, "Signals"
         )
@@ -240,7 +238,6 @@ if "results" in st.session_state:
 
         st.divider()
 
-        # Download button
         json_str = _results_to_json(results)
         st.download_button(
             label="⬇️ Download signals as JSON",
@@ -254,11 +251,12 @@ else:
     st.markdown("""
 **How it works:**
 1. Select a market and optionally specific pairs
-2. Click **Generate Signals**
-3. The system fetches daily OHLCV data from Polygon.io and runs four strategies:
-   - **EMA Crossover** — trend direction from EMA20/EMA50 crossover
-   - **RSI** — overbought (>70 → SELL) / oversold (<30 → BUY)
-   - **MACD** — momentum crossover signal
-   - **Bollinger Bands** — price outside band signals mean reversion
-4. A weighted combined signal with confidence score is shown per pair
+2. Choose a timeframe: Daily (1D), 4-Hour, or 1-Hour
+3. Click **Generate Signals**
+4. The system fetches OHLCV data from Polygon.io and runs four strategies:
+   - **EMA Crossover** -- trend direction from EMA20/EMA50 crossover
+   - **RSI** -- overbought (>70 → SELL) / oversold (<30 → BUY)
+   - **MACD** -- momentum crossover signal
+   - **Bollinger Bands** -- price outside band signals mean reversion
+5. A weighted combined signal with confidence score is shown per pair
 """)

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Forex & Crypto Signal Generator — powered by Polygon.io
+Forex & Crypto Signal Generator -- powered by Polygon.io
 
 Usage:
-  python main.py                         # Forex majors (~90s on free tier)
-  python main.py --market crypto         # Top altcoins (~3min on free tier)
-  python main.py --market all            # Forex + crypto (~4.5min on free tier)
-  python main.py --pair BTC/USD          # Single pair (no rate-limit delay)
-  python main.py --export                # Also write signals_output.json
-  python main.py --period 150            # Use more historical data
+  python main.py                           # Forex majors, daily (~90s on free tier)
+  python main.py --market crypto           # Top altcoins (~3min on free tier)
+  python main.py --market all              # Forex + crypto (~4.5min on free tier)
+  python main.py --timeframe 4h            # 4-hour bars
+  python main.py --timeframe 1h            # 1-hour bars
+  python main.py --pair BTC/USD            # Single pair (no rate-limit delay)
+  python main.py --export                  # Also write signals_output.json
 """
 import argparse
 import time
@@ -16,7 +17,7 @@ import time
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.data.fetcher import ALL_PAIRS, DataFetchError, Timeframe, fetch_ohlcv, get_pairs_for_market
+from src.data.fetcher import ALL_PAIRS, DataFetchError, Timeframe, default_period_for, fetch_ohlcv, get_pairs_for_market
 from src.signals.aggregator import aggregate_signals
 from src.signals.output import export_json, print_signals
 from src.strategies.bollinger_strategy import BollingerStrategy
@@ -31,7 +32,7 @@ STRATEGIES = [
     BollingerStrategy(),
 ]
 
-_RATE_LIMIT_DELAY = 13.0  # seconds between requests on Polygon free tier (5 req/min)
+_RATE_LIMIT_DELAY = 13.0
 
 
 def run(pairs: list[str], period_days: int, export: bool, market: str, timeframe: Timeframe, console: Console) -> None:
@@ -43,10 +44,10 @@ def run(pairs: list[str], period_days: int, export: bool, market: str, timeframe
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task("Starting…", total=len(pairs))
+        task = progress.add_task("Starting...", total=len(pairs))
 
         for i, pair in enumerate(pairs):
-            progress.update(task, description=f"Fetching {pair}…")
+            progress.update(task, description=f"Fetching {pair}...")
             try:
                 ohlcv = fetch_ohlcv(pair, period_days, timeframe)
                 signals = [s.generate(pair, ohlcv) for s in STRATEGIES]
@@ -64,7 +65,7 @@ def run(pairs: list[str], period_days: int, export: bool, market: str, timeframe
         print_signals(results, console, market=market)
     else:
         console.print(
-            "[red]No signals generated — check your POLYGON_API_KEY and network connection.[/red]"
+            "[red]No signals generated -- check your POLYGON_API_KEY and network connection.[/red]"
         )
 
     if export and results:
@@ -107,7 +108,6 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    from src.data.fetcher import default_period_for
     period = args.period if args.period is not None else default_period_for(args.timeframe)
 
     if args.pair:

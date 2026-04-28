@@ -211,8 +211,8 @@ if "results" in st.session_state:
         df = _results_to_df(results)
         styled = (
             df.style
-            .applymap(_style_direction, subset=direction_cols)
-            .applymap(_style_confidence, subset=["Confidence"])
+            .map(_style_direction, subset=direction_cols)
+            .map(_style_confidence, subset=["Confidence"])
             .set_properties(**{"text-align": "center"}, subset=direction_cols + ["Confidence"])
             .set_properties(**{"font-weight": "bold"}, subset=["Pair"])
         )

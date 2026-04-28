@@ -83,26 +83,41 @@ def _results_to_df(results: list[PairResult]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _style_direction(val: str) -> str:
+def _cell_style(val: str) -> str:
     if val == "BUY":
-        return "background-color: #d4edda; color: #155724; font-weight: bold"
+        return "background:#d4edda;color:#155724;font-weight:bold;text-align:center;padding:6px 10px"
     if val == "SELL":
-        return "background-color: #f8d7da; color: #721c24; font-weight: bold"
+        return "background:#f8d7da;color:#721c24;font-weight:bold;text-align:center;padding:6px 10px"
     if val == "HOLD":
-        return "background-color: #fff3cd; color: #856404; font-weight: bold"
-    return ""
-
-
-def _style_confidence(val: str) -> str:
+        return "background:#fff3cd;color:#856404;font-weight:bold;text-align:center;padding:6px 10px"
     try:
         pct = int(val.strip("%"))
+        color = "#155724" if pct >= 66 else "#856404" if pct >= 40 else "#721c24"
+        return f"color:{color};font-weight:bold;text-align:center;padding:6px 10px"
     except ValueError:
-        return ""
-    if pct >= 66:
-        return "color: #155724; font-weight: bold"
-    if pct >= 40:
-        return "color: #856404; font-weight: bold"
-    return "color: #721c24; font-weight: bold"
+        return "text-align:center;padding:6px 10px"
+
+
+def _build_html_table(df: pd.DataFrame) -> str:
+    direction_cols = {"EMA Crossover", "RSI", "MACD", "Bollinger Bands", "Combined", "Confidence"}
+    header = "".join(
+        f"<th style='padding:8px 12px;border-bottom:2px solid #dee2e6;text-align:center'>{c}</th>"
+        for c in df.columns
+    )
+    rows_html = ""
+    for _, row in df.iterrows():
+        cells = ""
+        for col, val in row.items():
+            style = _cell_style(str(val)) if col in direction_cols else "padding:6px 10px;font-weight:bold"
+            cells += f"<td style='{style}'>{val}</td>"
+        rows_html += f"<tr style='border-bottom:1px solid #dee2e6'>{cells}</tr>"
+    return (
+        "<div style='overflow-x:auto'>"
+        "<table style='border-collapse:collapse;width:100%;font-size:14px'>"
+        f"<thead><tr style='background:#f8f9fa'>{header}</tr></thead>"
+        f"<tbody>{rows_html}</tbody>"
+        "</table></div>"
+    )
 
 
 def _results_to_json(results: list[PairResult]) -> str:
@@ -164,8 +179,6 @@ with st.sidebar:
 
 # ── Main area ─────────────────────────────────────────────────────────────────
 
-direction_cols = ["EMA Crossover", "RSI", "MACD", "Bollinger Bands", "Combined"]
-
 if generate:
     st.session_state.pop("results", None)  # clear previous cache on manual refresh
 
@@ -209,14 +222,7 @@ if "results" in st.session_state:
         st.subheader(f"{market_label} Signals — {ts}")
 
         df = _results_to_df(results)
-        styled = (
-            df.style
-            .map(_style_direction, subset=direction_cols)
-            .map(_style_confidence, subset=["Confidence"])
-            .set_properties(**{"text-align": "center"}, subset=direction_cols + ["Confidence"])
-            .set_properties(**{"font-weight": "bold"}, subset=["Pair"])
-        )
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+        st.markdown(_build_html_table(df), unsafe_allow_html=True)
 
         st.divider()
 

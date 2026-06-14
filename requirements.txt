@@ -5,3 +5,8 @@ numpy>=1.24
 rich>=13.0
 streamlit>=1.35
 pytest>=7.0
+# Trading bot dependencies
+oandapyV20>=0.7.2
+python-binance>=1.0.19
+python-telegram-bot>=20.7
+APScheduler>=3.10.4
